@@ -1,0 +1,37 @@
+/.terraform/
+/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+*.tfvars.json
+.terraform.tfstate.backup
+*.plan
+.env
+.azure/
+.dotnet_bundle/
+.venv/
+.vscode/
+.DS_Store
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+output/
+
+# Bicep build artifacts (compiled JSON from .bicep files)
+iac/**/*.json
+!tests/**/*.json
+
+# Test output files
+tests/e2e/what-if-output.json
+tests/e2e/deployment-output.json
+tests/e2e/deployment-error.log
+tests/e2e/state_check/what-if.json
+
+# plan files create by Codex 
+.vibedata/
+
+#PRDs and RFCs
+/docs/prd/
+/docs/rfc/
