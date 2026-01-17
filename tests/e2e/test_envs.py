@@ -27,16 +27,12 @@ def test_env_plan(tmp_path: Path, env_root: Path):
     """
     assert env_root.exists(), f"Missing env root: {env_root}"
 
-    backend_config = {
-        "resource_group_name": os.environ.get("BACKEND_RESOURCE_GROUP", ""),
-        "storage_account_name": os.environ.get("BACKEND_STORAGE_ACCOUNT", ""),
-        "container_name": os.environ.get("BACKEND_CONTAINER", ""),
-        "key": os.environ.get("BACKEND_KEY", ""),
-    }
-
-    # Require backend config to be non-empty to avoid accidental remote calls.
-    if not all(backend_config.values()):
+    try:
+        backend_config, _backend_env = tf.build_backend_config_from_env()
+    except tf.TerraformError:
         pytest.skip("Backend config env vars not set; skipping env plan.")
+
+    apply_enabled = tf.should_run("ENABLE_ACTUAL_DEPLOYMENT")
 
     # Copy env root into temp dir to avoid modifying source.
     workdir = tmp_path / env_root.name
@@ -46,7 +42,25 @@ def test_env_plan(tmp_path: Path, env_root: Path):
 
     tf.terraform_init(workdir, backend=True, backend_config=backend_config)
     plan_path = "plan.tfplan"
-    tf.terraform_plan(workdir, PARAMS_FILE, plan_path=plan_path)
+    tf.terraform_plan(
+        workdir,
+        PARAMS_FILE,
+        plan_path=plan_path,
+        refresh=False,
+        use_cache=tf.should_run("USE_TF_PLAN_CACHE"),
+    )
     plan_json = tf.terraform_show_json(workdir, plan_path=plan_path)
     assert "format_version" in plan_json
     assert "planned_values" in plan_json
+
+    if apply_enabled:
+        tf.terraform_apply(workdir, plan_path=plan_path)
+        drift_result = tf.terraform_plan(
+            workdir,
+            PARAMS_FILE,
+            plan_path=plan_path,
+            refresh=True,
+            detailed_exitcode=True,
+            use_cache=False,
+        )
+        assert drift_result.returncode in (0, 2)

@@ -1,71 +1,57 @@
 # Terraform Test Harness (Publisher IaC)
 
-This harness mirrors the two-tier model from VD-84 (Bicep) but is Terraform-native: fast plan-only by default, with opt-in apply + drift check.
+Terraform-native harness for publisher infrastructure. Defaults to plan-only; apply + drift check is opt-in.
 
-## Goals
-- Deterministic validation of publisher IaC modules and env roots.
-- Plan-only defaults; gated apply for real deployments.
-- Single source of truth for inputs; reproducible runs; cached plans.
+## Prerequisites
+- Terraform CLI on PATH (>= 1.5).
+- Python 3 + pytest.
+- Azure credentials only required for apply; plan-only uses mocks and `-refresh=false`.
+- Run commands from repo root: `scratch-publisher-iac/`.
 
-## Non-Goals
-- Marketplace/Bicep harness changes.
-- Workload/app deployment tests or marketplace UI flows.
-- Full CI/CD wiring (can be added later).
+## Repo Layout (tests)
+- `tests/fixtures/params.dev.tfvars.json` — single source of truth for inputs.
+- `tests/unit/fixtures/test-<module>/main.tf` — module wrappers that include the naming module and inline mocks.
+- `tests/helpers/terraform.py` — init/plan/show/apply helpers, backend parsing (BACKEND_*), plan cache, var filtering.
+- `tests/unit/test_modules.py` — per-module plan tests.
+- `tests/e2e/test_envs.py` — env-root tests (dev/ephemeral/prod).
 
-## Structure
-- `tests/fixtures/params.dev.tfvars.json` — single source of truth (subscriptionId, resourceGroupName, location, module inputs).
-- `tests/unit/fixtures/test-<module>/main.tf` — tiny wrappers with mocked deps/locals.
-- `tests/helpers/terraform.py` — helpers for init/plan/show/apply, var filtering, caching, RG lifecycle (to be implemented).
-- Pytest suites:
-  - `tests/unit/test_modules.py` — per-module plan tests.
-  - `tests/e2e/test_envs.py` — env-root plan/apply tests (dev/ephemeral/prod).
+## Unit Tests (per module, plan-only)
+Pytest renders fixtures into a temp dir; do **not** run `terraform` in repo root.
+- Example (network module):
+  ```
+  RUN_TF_TESTS=true USE_TF_PLAN_CACHE=true python -m pytest tests/unit/test_modules.py -k network
+  ```
+- Under the hood: `terraform init -backend=false`, `terraform plan -refresh=false -lock=false -out plan.tfplan -var-file=tests/fixtures/params.dev.tfvars.json`, `terraform show -json plan.tfplan`.
+- `USE_TF_PLAN_CACHE=true` reuses the temp `plan.tfplan` between runs.
+- Manual run (if needed): copy a fixture (e.g., `tests/unit/fixtures/test-network/main.tf`) to a work dir, replace `__MODULE_DIR__`/`__NAMING_MODULE__` with real paths, then run `terraform init -backend=false` and `terraform plan ...` **in that work dir**.
 
-## Backends
-- E2E: RFC-80 remote state (`tfstate-prod/nonprod`, key `publisher/vd-core/<env>/<env_id>/terraform.tfstate`) via `-backend-config`.
-- Unit: local backend or `-backend=false` for isolated plans.
+## E2E Tests (env roots)
+Requires backend config envs (RFC-80): `BACKEND_RESOURCE_GROUP`, `BACKEND_STORAGE_ACCOUNT`, `BACKEND_CONTAINER`, `BACKEND_KEY`.
 
-## Workflows
-### Unit (per module, plan-only)
-1) `terraform init -backend=false`
-2) `terraform plan -input=false -lock=false -out plan.tfplan -var-file=tests/fixtures/params.dev.tfvars.json`
-3) `terraform show -json plan.tfplan` → save/parse; cache plan outputs per module.
-4) Pytest supports `-k module_name` filtering (set `RUN_TF_TESTS=true` to run).
+Plan-only (default):
+```
+RUN_TF_E2E=true BACKEND_RESOURCE_GROUP=... BACKEND_STORAGE_ACCOUNT=... BACKEND_CONTAINER=... BACKEND_KEY=... python -m pytest tests/e2e -k dev
+```
+Swap `-k dev` for `ephemeral` or `prod` to target other env roots. Tests copy `iac/environments/<env>` to a temp dir, then run init/plan/show there.
 
-### E2E (env roots)
-- Default: plan-only
-  - `terraform init -backend-config=...`
-  - `terraform plan -input=false -lock=false -out plan.tfplan -var-file=tests/fixtures/params.dev.tfvars.json`
-  - `terraform show -json plan.tfplan` → artifacts.
-- Opt-in apply (guarded by `ENABLE_ACTUAL_DEPLOYMENT=true`)
-  - `terraform apply plan.tfplan`
-  - Post-apply drift check: `terraform plan -input=false -lock=false -detailed-exitcode` (expect no-op).
-  - RG lifecycle helper; optional `KEEP_RESOURCE_GROUP` to retain for debugging.
-  - Backend config supplied via env when running tests: `BACKEND_RESOURCE_GROUP`, `BACKEND_STORAGE_ACCOUNT`, `BACKEND_CONTAINER`, `BACKEND_KEY`. Set `RUN_TF_E2E=true` to run.
+Opt-in apply + drift:
+```
+ENABLE_ACTUAL_DEPLOYMENT=true RUN_TF_E2E=true BACKEND_RESOURCE_GROUP=... BACKEND_STORAGE_ACCOUNT=... BACKEND_CONTAINER=... BACKEND_KEY=... python -m pytest tests/e2e/test_envs.py::test_env_plan[ephemeral]
+```
+Drift check uses `terraform plan -detailed-exitcode -refresh=true` (expect 0/2). You need Azure creds for apply. `USE_TF_PLAN_CACHE=true` reuses `plan.tfplan` in the temp work dir.
 
-## Commands (examples)
-- Unit: `terraform init -backend=false && terraform plan -input=false -lock=false -out plan.tfplan -var-file=tests/fixtures/params.dev.tfvars.json`
-- E2E plan: `terraform init -backend-config=… && terraform plan -input=false -lock=false -out plan.tfplan -var-file=tests/fixtures/params.dev.tfvars.json`
-- E2E apply (gated): `ENABLE_ACTUAL_DEPLOYMENT=true terraform apply plan.tfplan && terraform plan -input=false -lock=false -detailed-exitcode`
+## Flags
+- `RUN_TF_TESTS=true` — enable unit module plans.
+- `RUN_TF_E2E=true` — enable env-root plans.
+- `ENABLE_ACTUAL_DEPLOYMENT=true` — allow apply + drift check.
+- `USE_TF_PLAN_CACHE=true` — reuse existing `plan.tfplan` if present.
+- Backend envs (E2E): `BACKEND_RESOURCE_GROUP`, `BACKEND_STORAGE_ACCOUNT`, `BACKEND_CONTAINER`, `BACKEND_KEY`.
 
-## Artifacts & Caching
-- Save `plan.tfplan` + `plan.json` (`terraform show -json`) per module/env.
-- Cache plan outputs per module to reduce repeat work.
-- Save apply logs and post-apply plan JSON for drift checks (when applies run).
+## Outputs & Artifacts
+- `plan.tfplan` + `terraform show -json` per module/env (stored in temp dirs during tests).
+- Apply logs and post-apply drift plan JSON when apply is enabled.
 
-## Gating & Flags
-- `ENABLE_ACTUAL_DEPLOYMENT=true` required for applies.
-- `KEEP_RESOURCE_GROUP` controls cleanup (default keep for debug parity with VD-84).
-
-## TF vs Bicep Notes
-- Use `terraform plan`/`show -json` (vs Azure what-if).
-- Local backend for unit; RFC-80 remote backend for env roots.
-- Filter vars to avoid “undeclared variable” errors.
-- Plan caching replaces what-if caching.
-
-## Acceptance Targets (aligned with VD-136)
-- Shared params JSON + validator.
-- Per-module wrappers + pytest suite (plan-only, cached, artifacts).
-- E2E pytest (plan-only by default with RFC-80 backend; artifacts saved).
-- Opt-in apply path with drift check; RG lifecycle helper.
-- Helpers for init/plan/show and RG management with apply gating.
-- This README documents workflow, flags, commands.
+## Troubleshooting
+- “Terraform initialized in an empty directory” — you ran `terraform` where no `main.tf` exists (e.g., repo root). Use pytest commands above or run terraform inside a work dir that contains a rendered `main.tf`.
+- E2E skipped — set all BACKEND_* env vars.
+- Apply failures — ensure Azure auth is available; keep `-refresh=false` for plan-only to avoid live lookups.
