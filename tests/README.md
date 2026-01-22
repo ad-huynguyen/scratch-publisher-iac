@@ -2,6 +2,11 @@
 
 Terraform-native harness for publisher infrastructure. Plan-only by default; apply + drift check is opt-in.
 
+## Current Test Configuration
+- **Region**: westus2
+- **Modules tested**: naming, network, dns, kv, storage, acr, postgres, appserviceplan, bastion, vm-jumphost, log-analytics
+- **Expectations**: Pre-generated JSON files in `tests/expectations/` define expected resource counts and naming patterns
+
 ## Prerequisites
 - Terraform CLI (>= 1.5) on PATH.
 - Python 3 + pytest.
@@ -14,7 +19,7 @@ Terraform-native harness for publisher infrastructure. Plan-only by default; app
 - `tests/helpers/terraform.py` — init/plan/show/apply helpers, backend parsing (BACKEND_*), plan cache, ARM env passthrough.
 - `tests/unit/test_modules.py` — per-module plan tests with expectation comparison.
 - `tests/e2e/test_envs.py` — env-root tests (dev/ephemeral/prod).
-- `tests/expectations/` — auto-generated expectations from PRD-46 (parsed from the PRD “Expectations” block each run).
+- `tests/expectations/` — module expectation files (resource counts, naming patterns) derived from PRD-46. These are committed to the repo and used for validation.
 - `tests/plan-debug/` — optional plan JSON dumps for reviewer comparison (gitignored).
 
 ## Unit Tests (per module, plan-only)
@@ -24,11 +29,12 @@ Pytest renders fixtures into a temp dir; do **not** run `terraform` in repo root
   RUN_TF_TESTS=true USE_TF_PLAN_CACHE=true python -m pytest tests/unit/test_modules.py -k network -vv
   ```
 - Under the hood: `terraform init -backend=false`, `terraform plan -refresh=false -lock=false -out plan.tfplan -var-file=tests/fixtures/params.dev.tfvars.json`, `terraform show -json plan.tfplan`.
-- Expectations are auto-generated from PRD-46 each run (`tests/expectations/generate_from_prd.py` parses the PRD Expectations JSON block). No manual edits unless the PRD changes.
+- Expectations are defined in `tests/expectations/<module>.json` files (committed to repo). These specify expected resource counts and naming patterns derived from PRD-46.
 - Actual vs expected comparison:
-  - Expected: `tests/expectations/<module>.json` (generated each run).
+  - Expected: `tests/expectations/<module>.json` (committed).
   - Actual: `tests/plan-debug/<module>.plan.json` (written when `DUMP_TF_PLAN_JSON=true`).
   - Optional console dump: `DUMP_TF_RESOURCES=true` prints planned resources.
+- To regenerate expectations from PRD-46: `python tests/expectations/generate_from_prd.py` (only needed if PRD changes).
 - `USE_TF_PLAN_CACHE=true` reuses the temp `plan.tfplan` between runs.
 - Manual fallback: copy a fixture (e.g., `tests/unit/fixtures/test-network/main.tf`) to a work dir, replace placeholders, then run `terraform init -backend=false` and `terraform plan ...` in that dir.
 

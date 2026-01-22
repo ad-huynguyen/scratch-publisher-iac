@@ -2,6 +2,20 @@
 
 Infrastructure-as-code for the publisher control plane (PRD-46) using Terraform. Includes modules, environment roots (dev/ephemeral/prod), and a pytest-based harness for module and env validation.
 
+## Current Deployment (dev)
+
+| Resource | Configuration |
+|----------|---------------|
+| Region | **westus2** |
+| VNet | 4 subnets (bastion, jumphost, private-endpoints, postgres) |
+| PostgreSQL | VNet integration (delegated subnet), private endpoint only |
+| App Service Plan | P1v3 SKU (RFC-71 §7.2 VNet integration requirement) |
+| Storage | Queue + Table + 3 private endpoints (blob, queue, table) |
+| Key Vault | Private endpoint only |
+| ACR | Private endpoint only |
+| DNS | 7 private zones with VNet links |
+| Bastion + JumpHost | Sole operational access path |
+
 ## Prerequisites
 - Terraform >= 1.5
 - Python 3 + pytest
@@ -13,6 +27,7 @@ Infrastructure-as-code for the publisher control plane (PRD-46) using Terraform.
 - `iac/environments/` — env roots (`dev`, `ephemeral`, `prod`) composed from modules
 - `tests/` — pytest harness (unit module wrappers + env-root tests); see `tests/README.md` for detailed usage
 - `tests/fixtures/params.dev.tfvars.json` — shared input values for plans/tests
+- `tests/expectations/` — module expectation files (resource counts and naming patterns)
 - `prompts/` — Codex prompts for orientation/execution
 - `docs/prd/PRD-46.md` and `docs/rfc/*.md` — source specs
 
@@ -41,7 +56,9 @@ Use `-refresh=false` for offline plans; enable `-refresh=true` only when live ac
 
 ## Conventions & Constraints
 - Follow RFC-71 for naming/tagging/security baselines; RFC-80 for backend/state
-- Private endpoints + private DNS for PaaS; no public ingress except where explicitly allowed (publisher ACR/public KV per specs)
+- **All PaaS services use private endpoints** with private DNS zones for name resolution
+- PostgreSQL uses VNet integration (delegated subnet) - no public endpoint
+- App Service Plan requires P1v3 minimum SKU for VNet integration (RFC-71 §7.2)
 - GitHub Actions + OIDC for CI/CD (RFC-66)
 - Deterministic naming via `iac/modules/naming`
 

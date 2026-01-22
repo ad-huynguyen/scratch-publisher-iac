@@ -56,3 +56,9 @@ variable "aad_principal_name" {
   description = "Display name for the AAD administrator."
   type        = string
 }
+
+variable "zone" {
+  description = "Availability zone for the PostgreSQL server."
+  type        = string
+  default     = "1"
+}

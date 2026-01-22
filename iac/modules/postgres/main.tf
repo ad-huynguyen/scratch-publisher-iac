@@ -7,6 +7,7 @@ resource "azurerm_postgresql_flexible_server" "this" {
   storage_mb                    = 32768
   backup_retention_days         = 7
   geo_redundant_backup_enabled  = false
+  zone                          = var.zone
 
   # VNet integration (when delegated_subnet_id is provided)
   delegated_subnet_id = var.delegated_subnet_id
