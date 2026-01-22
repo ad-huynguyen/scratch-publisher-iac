@@ -120,6 +120,10 @@ module "acr" {
 
 # PostgreSQL in westus with public endpoint (eastus restricted for this subscription)
 # VNet integration requires same region, so using public endpoint mode with firewall rules
+# NOTE (VD-130): Private DNS zone 'privatelink.postgres.database.azure.com' is created but not used
+#   here because PostgreSQL is deployed to westus while VNet is in eastus. For prod environment
+#   with unrestricted region, use: delegated_subnet_id = module.network.subnet_ids.postgres,
+#   private_dns_zone_id = module.dns.zone_ids["postgres"], public_network_access = false
 module "postgres" {
   source                 = "../../modules/postgres"
   resource_group_name    = azurerm_resource_group.rg.name

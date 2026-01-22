@@ -1,0 +1,17 @@
+{
+  "counts": {
+    "azurerm_private_dns_zone": 7,
+    "azurerm_private_dns_zone_virtual_network_link": 7
+  },
+  "names": {
+    "azurerm_private_dns_zone": [
+      "privatelink.vaultcore.azure.net",
+      "privatelink.postgres.database.azure.com",
+      "privatelink.blob.core.windows.net",
+      "privatelink.queue.core.windows.net",
+      "privatelink.table.core.windows.net",
+      "privatelink.azurecr.io",
+      "privatelink.azurewebsites.net"
+    ]
+  }
+}
