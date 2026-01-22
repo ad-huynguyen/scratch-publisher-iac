@@ -9,11 +9,6 @@ terraform {
   }
 }
 
-provider "azurerm" {
-  features {}
-  skip_provider_registration = true
-}
-
 variable "metadata" {
   type = object({
     subscriptionId    = string
@@ -23,7 +18,14 @@ variable "metadata" {
 }
 
 variable "parameters" {
-  type = map(any)
+  type = any
+}
+
+provider "azurerm" {
+  features {}
+  subscription_id            = var.metadata.subscriptionId
+  tenant_id                  = var.parameters.tenant_id
+  skip_provider_registration = true
 }
 
 module "naming" {

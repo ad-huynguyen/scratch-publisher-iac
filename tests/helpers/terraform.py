@@ -24,14 +24,14 @@ def run(cmd: Iterable[str], workdir: Path, env: Optional[Dict[str, str]] = None)
     )
 
 
-def terraform_init(workdir: Path, backend: bool = True, backend_config: Optional[Dict[str, str]] = None) -> None:
+def terraform_init(workdir: Path, backend: bool = True, backend_config: Optional[Dict[str, str]] = None, env: Optional[Dict[str, str]] = None) -> None:
     args = [TERRAFORM_BIN, "init", "-input=false"]
     if not backend:
         args.append("-backend=false")
     if backend_config:
         for key, value in backend_config.items():
             args.extend(["-backend-config", f"{key}={value}"])
-    result = run(args, workdir)
+    result = run(args, workdir, env=env)
     if result.returncode != 0:
         raise TerraformError(f"terraform init failed: {result.stderr.strip()}")
 
@@ -44,6 +44,7 @@ def terraform_plan(
     refresh: bool = False,
     use_cache: bool = False,
     detailed_exitcode: bool = False,
+    env: Optional[Dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     plan_file = workdir / plan_path
     if use_cache and plan_file.exists():
@@ -63,15 +64,15 @@ def terraform_plan(
         args.append("-lock=false")
     if detailed_exitcode:
         args.append("-detailed-exitcode")
-    result = run(args, workdir)
+    result = run(args, workdir, env=env)
     if result.returncode not in allowed_exit_codes:
         raise TerraformError(f"terraform plan failed: {result.stderr.strip()}")
     return result
 
 
-def terraform_show_json(workdir: Path, plan_path: str = "plan.tfplan") -> Dict:
+def terraform_show_json(workdir: Path, plan_path: str = "plan.tfplan", env: Optional[Dict[str, str]] = None) -> Dict:
     args = [TERRAFORM_BIN, "show", "-json", plan_path]
-    result = run(args, workdir)
+    result = run(args, workdir, env=env)
     if result.returncode != 0:
         raise TerraformError(f"terraform show failed: {result.stderr.strip()}")
     try:
@@ -80,11 +81,10 @@ def terraform_show_json(workdir: Path, plan_path: str = "plan.tfplan") -> Dict:
         raise TerraformError(f"terraform show returned invalid JSON: {exc}") from exc
 
 
-def terraform_apply(workdir: Path, plan_path: str = "plan.tfplan", auto_approve: bool = True) -> None:
-    args = [TERRAFORM_BIN, "apply", plan_path]
-    if auto_approve:
-        args.append("-auto-approve")
-    result = run(args, workdir)
+def terraform_apply(workdir: Path, plan_path: str = "plan.tfplan", auto_approve: bool = True, env: Optional[Dict[str, str]] = None) -> None:
+    # When applying a saved plan, -auto-approve is implicit and not needed
+    args = [TERRAFORM_BIN, "apply", "-input=false", plan_path]
+    result = run(args, workdir, env=env)
     if result.returncode != 0:
         raise TerraformError(f"terraform apply failed: {result.stderr.strip()}")
 

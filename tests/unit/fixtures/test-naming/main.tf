@@ -11,7 +11,7 @@ variable "metadata" {
 }
 
 variable "parameters" {
-  type = map(any)
+  type = any
 }
 
 module "naming" {
