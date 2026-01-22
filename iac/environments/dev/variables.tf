@@ -1,7 +1,7 @@
 variable "location" {
   description = "Azure region for dev."
   type        = string
-  default     = "eastus"
+  default     = "westus2"
 }
 
 variable "system_name" {

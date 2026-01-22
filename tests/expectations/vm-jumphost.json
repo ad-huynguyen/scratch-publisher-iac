@@ -1,0 +1,13 @@
+{
+  "counts": {
+    "azurerm_linux_virtual_machine": 1
+  },
+  "names": {
+    "azurerm_linux_virtual_machine": [
+      "vd-vm-jumphost-*"
+    ],
+    "azurerm_network_interface": [
+      "vd-nic-jumphost-*"
+    ]
+  }
+}

@@ -14,7 +14,7 @@ variable "plan_name" {
 }
 
 variable "sku" {
-  description = "App Service Plan SKU."
+  description = "App Service Plan SKU. RFC-71 Section 7.2 mandates P1v3 minimum for VNet integration."
   type        = string
-  default     = "B1"
+  default     = "P1v3"
 }

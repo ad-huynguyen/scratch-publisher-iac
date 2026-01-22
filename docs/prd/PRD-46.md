@@ -1,19 +1,19 @@
 ---
-notion_page_id: "2e6309d25a8c80a19cc6dbae6b781909"
+notion_page_id: "2e6309d2-5a8c-80a1-9cc6-dbae6b781909"
 notion_numeric_id: 46
 doc_id: "PRD-46"
 notion_title: "Publisher Core Infrastructure and CICD"
 source: "notion"
-pulled_at: "2026-01-16T13:00:00Z"
+pulled_at: "2026-01-22T14:37:00+07:00"
 type: "PRD"
 root_prd_numeric_id: 46
-linear_issue_id: "VD-129"
+linear_issue_id: "VD-136"
 ---
 
 # 1. Objective
-
 Enable deterministic, repeatable provisioning of the publisher baseline infrastructure across all environments (production, development, ephemeral) with automated validation of changes before production deployment. This PRD establishes the foundation for secure, private-access publisher infrastructure. It excludes applications, workloads, and software distribution surfaces (public-facing resources).
 
+---
 # 2. Success Metrics
 
 | Metric | Target |
@@ -24,13 +24,12 @@ Enable deterministic, repeatable provisioning of the publisher baseline infrastr
 | Production deployment success rate | > 99% |
 | Mean time to restore environment | < 1 hr |
 
+---
 # 3. Scope
-
 ## 3.1 In-Scope
-
 **Infrastructure Components (all environments):**
 
-| Domain | Components | Constraints |
+| Domain  | Components | Constraints |
 | --- | --- | --- |
 | Network | Virtual network with subnets for bastion, jumphost, and private endpoints | All PaaS connectivity via private endpoints |
 | Storage | Storage account with queue and table services | Private access only |
@@ -48,20 +47,19 @@ Enable deterministic, repeatable provisioning of the publisher baseline infrastr
 - Scheduled drift detection with reporting
 
 ## 3.2 Out-of-Scope
-
 - Application deployments (App Services, Functions, container workloads)
 - Software distribution infrastructure (public Key Vault, public ACR)
 - Marketplace managed application manifests
 
+---
 # 4. Requirements
-
 ## 4.0 Summary of workflow by environment
 
 | Environment | Plan | Apply | Approval Required? |
 | --- | --- | --- | --- |
 | Ephemeral (PR validation) | Auto | Auto | No |
 | Dev | Auto | Auto | No |
-| Prod | Auto | Gated | Yes |
+| Prod | Auto | Gated | **Yes** |
 
 ## 4.1 Functional Requirements
 
@@ -88,8 +86,8 @@ Enable deterministic, repeatable provisioning of the publisher baseline infrastr
 
 | ID | Requirement |
 | --- | --- |
-| SR-1 | CI/CD pipelines must authenticate using managed identity (Azure) or short-lived, automatically rotated tokens; no long-lived secrets. |
-| SR-2 | Access control must follow least-privilege principles with distinct permission sets for pipeline automation, human administrators, and runtime workloads. |
+| SR-1 | CI/CD pipelines must authenticate using Azure: managed identity; others: short-lived, automatically rotated tokens. No long-lived secrets shall be stored in the CI/CD system. |
+| SR-2 | Access control must follow least-privilege principles with distinct permission sets for: pipeline automation, human administrators, and runtime workloads. |
 | SR-3 | Pipeline identities must not have standing permissions to modify access controls during normal operation. |
 | SR-4 | All in-scope resources must enforce private-only connectivity—no public ingress required for data plane operations. |
 | SR-5 | Private endpoints must exist for Key Vault, ACR, Storage, and PostgreSQL. |
@@ -111,22 +109,21 @@ Enable deterministic, repeatable provisioning of the publisher baseline infrastr
 | OR-9 | Terraform state files must be stored using the key convention `publisher/<stack>/<env>/<env_id>/terraform.tfstate` per RFC-80. |
 
 ## 4.4 Policy and RBAC Requirements
-
 **Azure Control Plane RBAC**
 
 | ID | Requirement |
 | --- | --- |
-| RBAC-1 | Each environment type (prod, dev, ephemeral) must have dedicated AAD security groups for access control. Production: `publisher-<env>-contributor`, `publisher-<env>-reader`, `publisher-<env>-db-operator`, `publisher-<env>-db-admin`. |
-| RBAC-2 | Production: create AAD groups `publisher-prod-contributor`, `publisher-prod-reader`, `publisher-prod-db-operator`, `publisher-prod-db-admin`. |
-| RBAC-3 | Dev / Ephemeral: create AAD groups `publisher-dev-contributor`, `publisher-dev-reader`, `publisher-dev-db-operator`, `publisher-dev-db-admin`. |
+| RBAC-1 | Each environment type (prod, dev, ephemeral) must have dedicated AAD security groups for access control. **Production**: `publisher-<env>-contributor` (infrastructure operators), `publisher-<env>-reader` (read-only), `publisher-<env>-db-operator` (read-write on DB), `publisher-<env>-db-admin` (DBO). |
+| RBAC-2 | **Production**: Create AAD groups `publisher-prod-contributor`, `publisher-prod-reader`, `publisher-prod-db-operator`, `publisher-prod-db-admin`. |
+| RBAC-3 | Dev / Ephemeral: Create AAD groups `publisher-dev-contributor`, `publisher-dev-reader`, `publisher-dev-db-operator`, `publisher-dev-db-admin`. |
 | RBAC-4 | Role assignments must be scoped to the resource group level. |
 
 **Data Plane RBAC**
 
 | ID | Requirement |
 | --- | --- |
-| RBAC-5 | `publisher-<env>-contributor` groups must be assigned Contributor role on the resource group; `publisher-<env>-reader` groups assigned Reader on the resource group. |
-| RBAC-6 | `publisher-<env>-contributor` data plane roles: Key Vault Secrets Officer, Storage Blob Data Contributor, ACR Push, read/write. `publisher-<env>-reader` data plane roles: Key Vault Secrets User, Storage Blob Data Reader, ACR Pull. |
+| RBAC-5 | `publisher-<env>-contributor` groups must be assigned Contributor role on the resource group. `publisher-<env>-reader` groups must be assigned reader role on the resource group. |
+| RBAC-6 | `publisher-<env>-contributor` has data plane roles: Key Vault Secrets Officer, Storage Blob Data Contributor, ACR Push, read/write. `publisher-<env>-reader` has data plane roles: Key Vault Secrets User, Storage Blob Data Reader, ACR Pull. |
 | RBAC-7 | `publisher-<env>-db-operator` should have read/write permission on PG; `publisher-<env>-db-admin` should have DBO permission on PG. |
 
 **Policy Requirement**
@@ -148,7 +145,9 @@ Enable deterministic, repeatable provisioning of the publisher baseline infrastr
 | C-5 | Deployment parameters must follow RFC-79 (Publisher Deployment Parameters) for environment-specific configuration. |
 | C-6 | App Service plan only; no applications deployed as part of this PRD. |
 
+---
 # 5. Acceptance Criteria
+The PRD is complete when all of the following are verified:
 
 ### Infrastructure
 - [ ] All components in Section 3.1 are provisioned correctly for a new environment.
@@ -191,6 +190,7 @@ Enable deterministic, repeatable provisioning of the publisher baseline infrastr
 - [ ] Scheduled drift detection runs at least daily.
 - [ ] Drift report is generated and accessible without auto-remediation.
 
+---
 # 6. Dependencies
 
 | Dependency | Type | Notes |
@@ -200,10 +200,87 @@ Enable deterministic, repeatable provisioning of the publisher baseline infrastr
 | RFC-71 | Input | Naming, tagging, and security baseline |
 | RFC-80 | Input | State management conventions |
 
+---
 # 7. Open Questions
-
 - None
 
-# 8. References
-
+---
+## 8. References
 - None
+
+---
+## Expectations
+
+```json
+{
+  "modules": {
+    "network": {
+      "counts": {
+        "azurerm_virtual_network": 1,
+        "azurerm_subnet": 4
+      },
+      "names": {
+        "azurerm_virtual_network": ["vd-vnet-*"],
+        "azurerm_subnet": [
+          "AzureBastionSubnet",
+          "snet-jumphost",
+          "snet-private-endpoints",
+          "snet-postgres"
+        ]
+      }
+    },
+    "dns": {
+      "counts": {
+        "azurerm_private_dns_zone": 7,
+        "azurerm_private_dns_zone_virtual_network_link": 7
+      },
+      "names": {
+        "azurerm_private_dns_zone": [
+          "privatelink.vaultcore.azure.net",
+          "privatelink.postgres.database.azure.com",
+          "privatelink.blob.core.windows.net",
+          "privatelink.queue.core.windows.net",
+          "privatelink.table.core.windows.net",
+          "privatelink.azurecr.io",
+          "privatelink.azurewebsites.net"
+        ]
+      }
+    },
+    "storage": {
+      "counts": { "azurerm_storage_account": 1 },
+      "names": { "azurerm_storage_account": ["vdst*"] }
+    },
+    "kv": {
+      "counts": { "azurerm_key_vault": 1 },
+      "names": { "azurerm_key_vault": ["vd-kv-*"] }
+    },
+    "acr": {
+      "counts": { "azurerm_container_registry": 1 },
+      "names": { "azurerm_container_registry": ["vdacr*"] }
+    },
+    "postgres": {
+      "counts": { "azurerm_postgresql_flexible_server": 1 },
+      "names": { "azurerm_postgresql_flexible_server": ["vd-psql-*"] }
+    },
+    "appserviceplan": {
+      "counts": { "azurerm_service_plan": 1 },
+      "names": { "azurerm_service_plan": ["vd-asp-*"] }
+    },
+    "bastion": {
+      "counts": { "azurerm_bastion_host": 1 },
+      "names": { "azurerm_bastion_host": ["vd-bastion-*"] }
+    },
+    "vm-jumphost": {
+      "counts": { "azurerm_linux_virtual_machine": 1 },
+      "names": {
+        "azurerm_linux_virtual_machine": ["vd-vm-jumphost-*"],
+        "azurerm_network_interface": ["vd-nic-jumphost-*"]
+      }
+    },
+    "log-analytics": {
+      "counts": { "azurerm_log_analytics_workspace": 1 },
+      "names": { "azurerm_log_analytics_workspace": ["vd-law-*"] }
+    }
+  }
+}
+```

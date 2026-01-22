@@ -1,0 +1,10 @@
+{
+  "counts": {
+    "azurerm_container_registry": 1
+  },
+  "names": {
+    "azurerm_container_registry": [
+      "vdacr*"
+    ]
+  }
+}

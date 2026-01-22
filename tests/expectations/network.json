@@ -1,0 +1,17 @@
+{
+  "counts": {
+    "azurerm_virtual_network": 1,
+    "azurerm_subnet": 4
+  },
+  "names": {
+    "azurerm_virtual_network": [
+      "vd-vnet-*"
+    ],
+    "azurerm_subnet": [
+      "AzureBastionSubnet",
+      "snet-jumphost",
+      "snet-private-endpoints",
+      "snet-postgres"
+    ]
+  }
+}

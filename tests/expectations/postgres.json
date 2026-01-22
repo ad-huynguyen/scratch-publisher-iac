@@ -1,0 +1,10 @@
+{
+  "counts": {
+    "azurerm_postgresql_flexible_server": 1
+  },
+  "names": {
+    "azurerm_postgresql_flexible_server": [
+      "vd-psql-*"
+    ]
+  }
+}

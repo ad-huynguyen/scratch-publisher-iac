@@ -1,0 +1,10 @@
+{
+  "counts": {
+    "azurerm_log_analytics_workspace": 1
+  },
+  "names": {
+    "azurerm_log_analytics_workspace": [
+      "vd-law-*"
+    ]
+  }
+}

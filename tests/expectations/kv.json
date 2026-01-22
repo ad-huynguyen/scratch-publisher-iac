@@ -1,0 +1,10 @@
+{
+  "counts": {
+    "azurerm_key_vault": 1
+  },
+  "names": {
+    "azurerm_key_vault": [
+      "vd-kv-*"
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "counts": {
+    "azurerm_service_plan": 1
+  },
+  "names": {
+    "azurerm_service_plan": [
+      "vd-asp-*"
+    ]
+  }
+}

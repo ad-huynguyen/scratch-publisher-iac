@@ -1,0 +1,10 @@
+{
+  "counts": {
+    "azurerm_storage_account": 1
+  },
+  "names": {
+    "azurerm_storage_account": [
+      "vdst*"
+    ]
+  }
+}

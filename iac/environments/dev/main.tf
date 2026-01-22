@@ -118,20 +118,15 @@ module "acr" {
   private_dns_zone_id        = module.dns.zone_ids["acr"]
 }
 
-# PostgreSQL in westus with public endpoint (eastus restricted for this subscription)
-# VNet integration requires same region, so using public endpoint mode with firewall rules
-# NOTE (VD-130): Private DNS zone 'privatelink.postgres.database.azure.com' is created but not used
-#   here because PostgreSQL is deployed to westus while VNet is in eastus. For prod environment
-#   with unrestricted region, use: delegated_subnet_id = module.network.subnet_ids.postgres,
-#   private_dns_zone_id = module.dns.zone_ids["postgres"], public_network_access = false
+# PostgreSQL with private endpoint per RFC-71 Section 5.1 and PRD-46 SR-5
 module "postgres" {
   source                 = "../../modules/postgres"
   resource_group_name    = azurerm_resource_group.rg.name
-  location               = "westus"  # eastus restricted, westus available
+  location               = local.location
   postgres_name          = module.naming.postgres_name
-  delegated_subnet_id    = null      # No VNet integration (different region)
-  private_dns_zone_id    = null      # No private DNS (public endpoint)
-  public_network_access  = true      # Enable public endpoint with firewall
+  delegated_subnet_id    = module.network.subnet_ids.postgres
+  private_dns_zone_id    = module.dns.zone_ids["postgres"]
+  public_network_access  = false
   administrator_login    = var.postgres_admin_login
   administrator_password = var.postgres_admin_password
   aad_tenant_id          = var.tenant_id
@@ -139,16 +134,14 @@ module "postgres" {
   aad_principal_name     = var.postgres_aad_principal_name
 }
 
-# App Service Plan - Blocked by Azure Policy "Dev/Test Cost Guardrails"
-# Policy: /providers/Microsoft.Management/managementGroups/mg-devtest-guardrails/providers/Microsoft.Authorization/policyAssignments/dt-cost-guardrails
-# Action: Request policy exemption or deploy in a different subscription
-# module "app_service_plan" {
-#   source              = "../../modules/appserviceplan"
-#   resource_group_name = azurerm_resource_group.rg.name
-#   location            = local.location
-#   plan_name           = module.naming.app_service_plan_name
-#   sku                 = "B1"  # Or use variable for environment-specific SKU
-# }
+# App Service Plan per RFC-71 Section 7.2 (P1v3 minimum for VNet integration)
+module "app_service_plan" {
+  source              = "../../modules/appserviceplan"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = local.location
+  plan_name           = module.naming.app_service_plan_name
+  sku                 = "P1v3"
+}
 
 module "bastion" {
   source              = "../../modules/bastion"
