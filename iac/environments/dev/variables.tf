@@ -35,7 +35,7 @@ variable "subnet_bastion_cidr" {
 variable "subnet_jumphost_cidr" {
   description = "CIDR for JumpHost subnet."
   type        = string
-  default     = "10.10.0.32/26"
+  default     = "10.10.0.32/27"
 }
 
 variable "subnet_private_endpoints_cidr" {

@@ -1,15 +1,4 @@
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = ">= 3.90.0"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-}
+# Provider inherited from root module
 
 resource "azurerm_network_interface" "nic" {
   name                = var.nic_name

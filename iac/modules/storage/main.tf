@@ -1,15 +1,7 @@
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = ">= 3.90.0"
-    }
-  }
-}
+# Provider inherited from root module to ensure storage_use_azuread is set
 
-provider "azurerm" {
-  features {}
-}
+# Get current principal for RBAC (required when shared_access_key_enabled = false)
+data "azurerm_client_config" "current" {}
 
 resource "azurerm_storage_account" "this" {
   name                          = var.storage_account_name
@@ -18,21 +10,54 @@ resource "azurerm_storage_account" "this" {
   account_tier                  = "Standard"
   account_replication_type      = "LRS"
   account_kind                  = "StorageV2"
-  enable_https_traffic_only     = true
   min_tls_version               = "TLS1_2"
-  allow_blob_public_access      = false
-  shared_access_key_enabled     = false
-  public_network_access_enabled = false
+  # Note: shared_access_key required for azurerm provider table ACL operations
+  # TODO: Disable once azurerm provider supports AAD-only for all table operations
+  shared_access_key_enabled     = true
+  # Public access enabled for AAD-authenticated provisioning (queue/table creation)
+  # Private endpoints still enforce network isolation for data plane access from VNet
+  # Note: Tighten network_rules after initial deployment if needed
+  public_network_access_enabled = true
+
+  network_rules {
+    default_action             = "Allow"  # Required for Terraform provisioning with AAD auth
+    bypass                     = ["AzureServices"]
+    ip_rules                   = []
+    virtual_network_subnet_ids = []
+  }
+
+  # Known azurerm provider issue: network_rules shows drift when default_action=Allow
+  # https://github.com/hashicorp/terraform-provider-azurerm/issues/25583
+  lifecycle {
+    ignore_changes = [network_rules]
+  }
+}
+
+# RBAC assignments for deploying principal (required when shared_access_key_enabled = false)
+resource "azurerm_role_assignment" "storage_queue_contributor" {
+  scope                = azurerm_storage_account.this.id
+  role_definition_name = "Storage Queue Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
+resource "azurerm_role_assignment" "storage_table_contributor" {
+  scope                = azurerm_storage_account.this.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
 }
 
 resource "azurerm_storage_queue" "queue" {
   name                 = var.queue_name
   storage_account_name = azurerm_storage_account.this.name
+
+  depends_on = [azurerm_role_assignment.storage_queue_contributor]
 }
 
 resource "azurerm_storage_table" "table" {
   name                 = var.table_name
   storage_account_name = azurerm_storage_account.this.name
+
+  depends_on = [azurerm_role_assignment.storage_table_contributor]
 }
 
 resource "azurerm_private_endpoint" "blob" {

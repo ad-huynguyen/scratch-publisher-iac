@@ -1,16 +1,3 @@
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = ">= 3.90.0"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-}
-
 resource "azurerm_key_vault" "this" {
   name                          = var.key_vault_name
   location                      = var.location
@@ -20,7 +7,7 @@ resource "azurerm_key_vault" "this" {
   soft_delete_retention_days    = 90
   purge_protection_enabled      = true
   public_network_access_enabled = false
-  enable_rbac_authorization     = true
+  rbac_authorization_enabled    = true
   network_acls {
     bypass         = "AzureServices"
     default_action = "Deny"

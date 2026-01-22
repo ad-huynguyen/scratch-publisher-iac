@@ -14,13 +14,21 @@ variable "postgres_name" {
 }
 
 variable "private_dns_zone_id" {
-  description = "Private DNS zone ID for Postgres."
+  description = "Private DNS zone ID for Postgres (required for VNet integration)."
   type        = string
+  default     = null
 }
 
 variable "delegated_subnet_id" {
-  description = "Delegated subnet for the Flexible Server."
+  description = "Delegated subnet for the Flexible Server (null for public endpoint mode)."
   type        = string
+  default     = null
+}
+
+variable "public_network_access" {
+  description = "Enable public network access (required when delegated_subnet_id is null)."
+  type        = bool
+  default     = false
 }
 
 variable "administrator_login" {

@@ -4,8 +4,8 @@ terraform {
   backend "azurerm" {
     # Override all values via -backend-config to comply with RFC-80:
     # resource_group_name, storage_account_name, container_name (tfstate-nonprod), key (publisher/vd-core/ephemeral/pr-<pr>/terraform.tfstate)
-    resource_group_name  = "rg-tfstate-nonprod"
-    storage_account_name = "tfstatenonprod"
+    resource_group_name  = "vd-rg-tfstate-j5y324me"
+    storage_account_name = "vdsttfstatej5y324me"
     container_name       = "tfstate-nonprod"
     key                  = "publisher/vd-core/ephemeral/pr-000/terraform.tfstate"
   }
@@ -176,13 +176,11 @@ resource "azurerm_monitor_diagnostic_setting" "kv" {
   target_resource_id         = module.key_vault.key_vault_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "AuditEvent"
-    enabled  = true
   }
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }
 
@@ -191,21 +189,17 @@ resource "azurerm_monitor_diagnostic_setting" "storage" {
   target_resource_id         = module.storage.storage_account_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "StorageRead"
-    enabled  = true
   }
-  logs {
+  enabled_log {
     category = "StorageWrite"
-    enabled  = true
   }
-  logs {
+  enabled_log {
     category = "StorageDelete"
-    enabled  = true
   }
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }
 
@@ -214,17 +208,14 @@ resource "azurerm_monitor_diagnostic_setting" "acr" {
   target_resource_id         = module.acr.acr_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "ContainerRegistryRepositoryEvents"
-    enabled  = true
   }
-  logs {
+  enabled_log {
     category = "ContainerRegistryLoginEvents"
-    enabled  = true
   }
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }
 
@@ -233,13 +224,11 @@ resource "azurerm_monitor_diagnostic_setting" "postgres" {
   target_resource_id         = module.postgres.postgres_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "PostgreSQLLogs"
-    enabled  = true
   }
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }
 
@@ -248,12 +237,10 @@ resource "azurerm_monitor_diagnostic_setting" "bastion" {
   target_resource_id         = module.bastion.bastion_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "BastionAuditLogs"
-    enabled  = true
   }
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }

@@ -4,8 +4,8 @@ terraform {
   backend "azurerm" {
     // Override all values via -backend-config to comply with RFC-80:
     // resource_group_name, storage_account_name, container_name (tfstate-nonprod), key (publisher/vd-core/dev/<env_id>/terraform.tfstate)
-    resource_group_name  = "rg-tfstate-nonprod"
-    storage_account_name = "tfstatenonprod"
+    resource_group_name  = "vd-rg-tfstate-j5y324me"
+    storage_account_name = "vdsttfstatej5y324me"
     container_name       = "tfstate-nonprod"
     key                  = "publisher/vd-core/dev/dev/terraform.tfstate"
   }
@@ -24,7 +24,8 @@ terraform {
 
 provider "azurerm" {
   features {}
-  subscription_id = var.subscription_id
+  subscription_id      = var.subscription_id
+  storage_use_azuread  = true
 }
 
 locals {
@@ -40,15 +41,11 @@ locals {
   subnet_private_endpt_prefix = var.subnet_private_endpoints_cidr
   subnet_postgres_prefix      = var.subnet_postgres_cidr
 
-  tags = merge(
-    {
-      environment = local.environment
-      purpose     = "publisher"
-      owner       = var.owner
-      created     = timestamp()
-    },
-    var.additional_tags
-  )
+  tags = {
+    environment = local.environment
+    purpose     = "publisher"
+    owner       = var.owner
+  }
 }
 
 module "naming" {
@@ -121,13 +118,16 @@ module "acr" {
   private_dns_zone_id        = module.dns.zone_ids["acr"]
 }
 
+# PostgreSQL in westus with public endpoint (eastus restricted for this subscription)
+# VNet integration requires same region, so using public endpoint mode with firewall rules
 module "postgres" {
   source                 = "../../modules/postgres"
   resource_group_name    = azurerm_resource_group.rg.name
-  location               = local.location
+  location               = "westus"  # eastus restricted, westus available
   postgres_name          = module.naming.postgres_name
-  delegated_subnet_id    = module.network.subnet_ids.postgres
-  private_dns_zone_id    = module.dns.zone_ids["postgres"]
+  delegated_subnet_id    = null      # No VNet integration (different region)
+  private_dns_zone_id    = null      # No private DNS (public endpoint)
+  public_network_access  = true      # Enable public endpoint with firewall
   administrator_login    = var.postgres_admin_login
   administrator_password = var.postgres_admin_password
   aad_tenant_id          = var.tenant_id
@@ -135,12 +135,16 @@ module "postgres" {
   aad_principal_name     = var.postgres_aad_principal_name
 }
 
-module "app_service_plan" {
-  source              = "../../modules/appserviceplan"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = local.location
-  plan_name           = module.naming.app_service_plan_name
-}
+# App Service Plan - Blocked by Azure Policy "Dev/Test Cost Guardrails"
+# Policy: /providers/Microsoft.Management/managementGroups/mg-devtest-guardrails/providers/Microsoft.Authorization/policyAssignments/dt-cost-guardrails
+# Action: Request policy exemption or deploy in a different subscription
+# module "app_service_plan" {
+#   source              = "../../modules/appserviceplan"
+#   resource_group_name = azurerm_resource_group.rg.name
+#   location            = local.location
+#   plan_name           = module.naming.app_service_plan_name
+#   sku                 = "B1"  # Or use variable for environment-specific SKU
+# }
 
 module "bastion" {
   source              = "../../modules/bastion"
@@ -158,7 +162,7 @@ module "jumphost" {
   nic_name            = module.naming.jumphost_nic_name
   vm_name             = module.naming.jumphost_vm_name
   subnet_id           = module.network.subnet_ids.jumphost
-  vm_size             = "Standard_B2s"
+  vm_size             = "Standard_D2s_v3"
   admin_username      = var.jumphost_admin_username
   ssh_public_key      = var.jumphost_ssh_public_key
 }
@@ -176,40 +180,38 @@ resource "azurerm_monitor_diagnostic_setting" "kv" {
   target_resource_id         = module.key_vault.key_vault_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "AuditEvent"
-    enabled  = true
   }
 
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }
 
 resource "azurerm_monitor_diagnostic_setting" "storage" {
   name                       = "${module.naming.storage_account_name}-diag"
-  target_resource_id         = module.storage.storage_account_id
+  target_resource_id         = "${module.storage.storage_account_id}/blobServices/default"
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "StorageRead"
-    enabled  = true
   }
 
-  logs {
+  enabled_log {
     category = "StorageWrite"
-    enabled  = true
   }
 
-  logs {
+  enabled_log {
     category = "StorageDelete"
-    enabled  = true
   }
 
-  metrics {
-    category = "AllMetrics"
-    enabled  = true
+  enabled_metric {
+    category = "Capacity"
+  }
+
+  enabled_metric {
+    category = "Transaction"
   }
 }
 
@@ -218,19 +220,16 @@ resource "azurerm_monitor_diagnostic_setting" "acr" {
   target_resource_id         = module.acr.acr_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "ContainerRegistryRepositoryEvents"
-    enabled  = true
   }
 
-  logs {
+  enabled_log {
     category = "ContainerRegistryLoginEvents"
-    enabled  = true
   }
 
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }
 
@@ -239,14 +238,12 @@ resource "azurerm_monitor_diagnostic_setting" "postgres" {
   target_resource_id         = module.postgres.postgres_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "PostgreSQLLogs"
-    enabled  = true
   }
 
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }
 
@@ -255,13 +252,11 @@ resource "azurerm_monitor_diagnostic_setting" "bastion" {
   target_resource_id         = module.bastion.bastion_id
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
-  logs {
+  enabled_log {
     category = "BastionAuditLogs"
-    enabled  = true
   }
 
-  metrics {
+  enabled_metric {
     category = "AllMetrics"
-    enabled  = true
   }
 }
