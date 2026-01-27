@@ -15,6 +15,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = ">= 3.90.0"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = ">= 2.47.0"
+    }
     random = {
       source  = "hashicorp/random"
       version = ">= 3.6.2"
@@ -24,8 +28,12 @@ terraform {
 
 provider "azurerm" {
   features {}
-  subscription_id      = var.subscription_id
-  storage_use_azuread  = true
+  subscription_id     = var.subscription_id
+  storage_use_azuread = true
+}
+
+provider "azuread" {
+  tenant_id = var.tenant_id
 }
 
 locals {
@@ -132,6 +140,10 @@ module "postgres" {
   aad_tenant_id          = var.tenant_id
   aad_principal_id       = var.postgres_aad_principal_id
   aad_principal_name     = var.postgres_aad_principal_name
+  # db-admin group as PostgreSQL AAD administrator (RBAC-7, VD-133)
+  enable_db_admin_group = true
+  db_admin_group_id     = module.rbac.db_admin_group_id
+  db_admin_group_name   = module.rbac.group_names.db_admin
 }
 
 # App Service Plan per RFC-71 Section 7.2 (P1v3 minimum for VNet integration)
@@ -169,6 +181,7 @@ module "log_analytics" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = local.location
   workspace_name      = module.naming.log_analytics_workspace_name
+  retention_in_days   = 30 # Azure minimum is 30 days (SR-7 7-day requirement not achievable with LAW)
 }
 
 # Diagnostics to Log Analytics Workspace (RFC-71 / PRD-46)
@@ -186,8 +199,8 @@ resource "azurerm_monitor_diagnostic_setting" "kv" {
   }
 }
 
-resource "azurerm_monitor_diagnostic_setting" "storage" {
-  name                       = "${module.naming.storage_account_name}-diag"
+resource "azurerm_monitor_diagnostic_setting" "storage_blob" {
+  name                       = "${module.naming.storage_account_name}-blob-diag"
   target_resource_id         = "${module.storage.storage_account_id}/blobServices/default"
   log_analytics_workspace_id = module.log_analytics.workspace_id
 
@@ -205,6 +218,50 @@ resource "azurerm_monitor_diagnostic_setting" "storage" {
 
   enabled_metric {
     category = "Capacity"
+  }
+
+  enabled_metric {
+    category = "Transaction"
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "storage_queue" {
+  name                       = "${module.naming.storage_account_name}-queue-diag"
+  target_resource_id         = "${module.storage.storage_account_id}/queueServices/default"
+  log_analytics_workspace_id = module.log_analytics.workspace_id
+
+  enabled_log {
+    category = "StorageRead"
+  }
+
+  enabled_log {
+    category = "StorageWrite"
+  }
+
+  enabled_log {
+    category = "StorageDelete"
+  }
+
+  enabled_metric {
+    category = "Transaction"
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "storage_table" {
+  name                       = "${module.naming.storage_account_name}-table-diag"
+  target_resource_id         = "${module.storage.storage_account_id}/tableServices/default"
+  log_analytics_workspace_id = module.log_analytics.workspace_id
+
+  enabled_log {
+    category = "StorageRead"
+  }
+
+  enabled_log {
+    category = "StorageWrite"
+  }
+
+  enabled_log {
+    category = "StorageDelete"
   }
 
   enabled_metric {
@@ -256,4 +313,51 @@ resource "azurerm_monitor_diagnostic_setting" "bastion" {
   enabled_metric {
     category = "AllMetrics"
   }
+}
+
+# JumpHost VM diagnostics - platform metrics only (guest logs require AMA extension)
+resource "azurerm_monitor_diagnostic_setting" "jumphost" {
+  name                       = "${module.naming.jumphost_vm_name}-diag"
+  target_resource_id         = module.jumphost.vm_id
+  log_analytics_workspace_id = module.log_analytics.workspace_id
+
+  enabled_metric {
+    category = "AllMetrics"
+  }
+}
+
+# Azure Policy assignments per PRD-46 Section 4.4 (POL-1, POL-2, POL-3)
+module "policy" {
+  source            = "../../modules/policy"
+  resource_group_id = azurerm_resource_group.rg.id
+  enforce           = false # Audit mode for initial deployment
+}
+
+# RBAC via AAD groups per PRD-46 Section 4.4 (RBAC-1 through RBAC-7)
+module "rbac" {
+  source             = "../../modules/rbac"
+  environment        = local.environment
+  resource_group_id  = azurerm_resource_group.rg.id
+  key_vault_id       = module.key_vault.key_vault_id
+  storage_account_id = module.storage.storage_account_id
+  acr_id             = module.acr.acr_id
+}
+
+# -----------------------------------------------------------------------------
+# Database RBAC and Admin Setup (VD-133, PRD-46 FR-11, RBAC-7)
+# -----------------------------------------------------------------------------
+
+# Store PostgreSQL admin password in Key Vault (FR-11)
+resource "azurerm_key_vault_secret" "postgres_admin_password" {
+  name         = "postgres-admin-password"
+  value        = var.postgres_admin_password
+  key_vault_id = module.key_vault.key_vault_id
+  content_type = "text/plain"
+
+  tags = merge(local.tags, {
+    purpose = "PostgreSQL administrator password"
+  })
+
+  # Ensure RBAC permissions are in place before creating secret
+  depends_on = [module.rbac]
 }

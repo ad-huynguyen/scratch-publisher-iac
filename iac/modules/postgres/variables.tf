@@ -62,3 +62,25 @@ variable "zone" {
   type        = string
   default     = "1"
 }
+
+# -----------------------------------------------------------------------------
+# Database RBAC - db-admin group (RBAC-7, VD-133)
+# -----------------------------------------------------------------------------
+
+variable "enable_db_admin_group" {
+  description = "Enable db-admin AAD group as PostgreSQL administrator."
+  type        = bool
+  default     = false
+}
+
+variable "db_admin_group_id" {
+  description = "AAD object ID for the db-admin group (PostgreSQL AAD administrator)."
+  type        = string
+  default     = ""
+}
+
+variable "db_admin_group_name" {
+  description = "Display name for the db-admin AAD group."
+  type        = string
+  default     = ""
+}

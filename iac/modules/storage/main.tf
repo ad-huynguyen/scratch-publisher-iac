@@ -4,23 +4,23 @@
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_storage_account" "this" {
-  name                          = var.storage_account_name
-  resource_group_name           = var.resource_group_name
-  location                      = var.location
-  account_tier                  = "Standard"
-  account_replication_type      = "LRS"
-  account_kind                  = "StorageV2"
-  min_tls_version               = "TLS1_2"
+  name                     = var.storage_account_name
+  resource_group_name      = var.resource_group_name
+  location                 = var.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  account_kind             = "StorageV2"
+  min_tls_version          = "TLS1_2"
   # Note: shared_access_key required for azurerm provider table ACL operations
   # TODO: Disable once azurerm provider supports AAD-only for all table operations
-  shared_access_key_enabled     = true
+  shared_access_key_enabled = true
   # Public access enabled for AAD-authenticated provisioning (queue/table creation)
   # Private endpoints still enforce network isolation for data plane access from VNet
   # Note: Tighten network_rules after initial deployment if needed
   public_network_access_enabled = true
 
   network_rules {
-    default_action             = "Allow"  # Required for Terraform provisioning with AAD auth
+    default_action             = "Allow" # Required for Terraform provisioning with AAD auth
     bypass                     = ["AzureServices"]
     ip_rules                   = []
     virtual_network_subnet_ids = []
